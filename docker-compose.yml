@@ -1,0 +1,52 @@
+version: "3.8"
+services:
+  mongodb:
+    image: mongo:6.0
+    container_name: mongodb
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - superhero-network
+    environment:
+      - MONGO_INITDB_DATABASE=superheroes
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: backend
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGO_URI=mongodb://mongodb:27017/superheroes
+    depends_on:
+      - mongodb
+    networks:
+      - superhero-network
+    volumes:
+      - ./backend:/app
+      - /app/node_modules
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    depends_on:
+      - backend
+    networks:
+      - superhero-network
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+
+networks:
+  superhero-network:
+    driver: bridge
+
+volumes:
+  mongodb_data:
