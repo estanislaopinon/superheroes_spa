@@ -1,67 +1,58 @@
 import { useState, useEffect } from "react";
 import axios from "axios";
-import SuperheroCard from "../components/SuperheroCard";
+import SuperheroCard from "../components/SuperheroCard.jsx";
 import { toast } from "react-toastify";
-import { Link } from "react-router-dom";
 
-const Home = () => {
+function Home() {
   const [superheroes, setSuperheroes] = useState([]);
-  const [filter, setFilter] = useState("");
+  const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    axios
-      .get("http://localhost:5000/api/superheroes")
-      .then((response) => setSuperheroes(response.data))
-      .catch(() => toast.error("Error al cargar superhéroes"));
+    const fetchSuperheroes = async () => {
+      try {
+        const response = await axios.get(
+          "http://localhost:5000/api/superheroes"
+        );
+        setSuperheroes(response.data);
+      } catch (error) {
+        toast.error("Error al cargar los superhéroes");
+        console.error("Error fetching superheroes:", error);
+      }
+    };
+    fetchSuperheroes();
   }, []);
 
-  const filteredSuperheroes = superheroes.filter((s) =>
-    s.name.toLowerCase().includes(filter.toLowerCase())
+  const filteredSuperheroes = superheroes.filter((superhero) =>
+    superhero.name.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  const handleDelete = async (id) => {
-    if (window.confirm("¿Seguro que quieres eliminar este superhéroe?")) {
-      try {
-        await axios.delete(`http://localhost:5000/api/superhero/${id}`);
-        setSuperheroes(superheroes.filter((s) => s._id !== id));
-        toast.success("Superhéroe eliminado con éxito");
-      } catch (err) {
-        toast.error("Error al eliminar superhéroe");
-      }
-    }
-  };
-
   return (
-    <div className="p-4">
-      <h1 className="text-3xl font-bold mb-4">Superhéroes</h1>
-      <input
-        type="text"
-        placeholder="Filtrar por nombre"
-        value={filter}
-        onChange={(e) => setFilter(e.target.value)}
-        className="border p-2 mb-4 w-full max-w-md"
-      />
-      <Link
-        to="/create"
-        className="bg-blue-500 text-white p-2 mb-4 inline-block"
-      >
-        Crear Superhéroe
-      </Link>
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {filteredSuperheroes.map((superhero) => (
-          <div key={superhero._id} className="relative">
-            <SuperheroCard superhero={superhero} />
-            <button
-              onClick={() => handleDelete(superhero._id)}
-              className="absolute top-2 right-2 bg-red-500 text-white p-1 rounded"
-            >
-              Eliminar
-            </button>
-          </div>
-        ))}
+    <div className="container mx-auto p-4">
+      <h2 className="text-3xl font-bold text-center mb-6">
+        Todos los Superhéroes
+      </h2>
+      <div className="mb-6">
+        <input
+          type="text"
+          placeholder="Buscar superhéroe..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+        />
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+        {filteredSuperheroes.length > 0 ? (
+          filteredSuperheroes.map((superhero) => (
+            <SuperheroCard key={superhero._id} superhero={superhero} />
+          ))
+        ) : (
+          <p className="text-center text-gray-500">
+            No se encontraron superhéroes.
+          </p>
+        )}
       </div>
     </div>
   );
-};
+}
 
 export default Home;
