@@ -396,12 +396,12 @@ mongoose
   })
   .then(async () => {
     console.log("Conectado a MongoDB");
-    // Verificar si la colección está vacía
     const count = await Superhero.countDocuments();
     if (count === 0) {
-      await Superhero.deleteMany({}); // Limpieza por seguridad
       await Superhero.insertMany(superheroes);
-      console.log("Datos iniciales cargados: 40 superhéroes");
+      console.log(
+        `Datos iniciales cargados: ${superheroes.length} superhéroes`
+      );
     } else {
       console.log("La colección ya contiene datos, omitiendo carga inicial");
     }
@@ -413,10 +413,10 @@ app.get("/api/superheroes", async (req, res) => {
   try {
     const superheroes = await Superhero.find();
     res.json(superheroes);
-  } catch (err) {
+  } catch (error) {
     res
       .status(500)
-      .json({ message: "Error al obtener superhéroes", error: err.message });
+      .json({ message: "Error al obtener superhéroes", error: error.message });
   }
 });
 
@@ -424,13 +424,11 @@ app.get("/api/superheroes/:house", async (req, res) => {
   try {
     const superheroes = await Superhero.find({ house: req.params.house });
     res.json(superheroes);
-  } catch (err) {
-    res
-      .status(500)
-      .json({
-        message: `Error al obtener superhéroes de ${req.params.house}`,
-        error: err.message,
-      });
+  } catch (error) {
+    res.status(500).json({
+      message: `Error al obtener superhéroes de ${req.params.house}`,
+      error: error.message,
+    });
   }
 });
 
@@ -440,39 +438,49 @@ app.get("/api/superhero/:id", async (req, res) => {
     if (!superhero)
       return res.status(404).json({ message: "Superhéroe no encontrado" });
     res.json(superhero);
-  } catch (err) {
+  } catch (error) {
     res
       .status(500)
-      .json({ message: "Error al obtener superhéroe", error: err.message });
+      .json({ message: "Error al obtener superhéroe", error: error.message });
   }
 });
 
 app.post("/api/superheroes", async (req, res) => {
   try {
-    const superhero = new Superhero(req.body);
+    const superheroData = {
+      ...req.body,
+      images: ["/images/superheroes.jpg"], // Forzar imagen fija
+    };
+    const superhero = new Superhero(superheroData);
     await superhero.save();
     res.status(201).json({ message: "Superhéroe creado con éxito", superhero });
-  } catch (err) {
-    res
-      .status(400)
-      .json({ message: "Error al crear superhéroe", error: err.message });
+  } catch (error) {
+    res.status(400).json({
+      message: "Error al crear superhéroe",
+      error: error.message,
+    });
   }
 });
 
 app.put("/api/superhero/:id", async (req, res) => {
   try {
+    const superheroData = {
+      ...req.body,
+      images: ["/images/superheroes.jpg"], // Forzar imagen fija
+    };
     const superhero = await Superhero.findByIdAndUpdate(
       req.params.id,
-      req.body,
-      { new: true }
+      superheroData,
+      { new: true, runValidators: true }
     );
     if (!superhero)
       return res.status(404).json({ message: "Superhéroe no encontrado" });
     res.json({ message: "Superhéroe actualizado con éxito", superhero });
-  } catch (err) {
-    res
-      .status(400)
-      .json({ message: "Error al actualizar superhéroe", error: err.message });
+  } catch (error) {
+    res.status(400).json({
+      message: "Error al actualizar superhéroe",
+      error: error.message,
+    });
   }
 });
 
@@ -482,10 +490,11 @@ app.delete("/api/superhero/:id", async (req, res) => {
     if (!superhero)
       return res.status(404).json({ message: "Superhéroe no encontrado" });
     res.json({ message: "Superhéroe eliminado con éxito" });
-  } catch (err) {
-    res
-      .status(500)
-      .json({ message: "Error al eliminar superhéroe", error: err.message });
+  } catch (error) {
+    res.status(500).json({
+      message: "Error al eliminar superhéroe",
+      error: error.message,
+    });
   }
 });
 
