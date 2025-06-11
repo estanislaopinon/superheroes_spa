@@ -2,16 +2,46 @@ const express = require("express");
 const mongoose = require("mongoose");
 const cors = require("cors");
 const path = require("path");
+const multer = require("multer");
+const fs = require("fs");
 const Superhero = require("./models/Superhero");
 
 const app = express();
 const PORT = 5000;
 
+// Configuración de Multer para almacenamiento de imágenes
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, path.join(__dirname, "uploads"));
+  },
+  filename: (req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    const name = `${Date.now()}${ext}`;
+    cb(null, name);
+  },
+});
+
+const upload = multer({
+  storage,
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB
+  fileFilter: (req, file, cb) => {
+    const allowedTypes = /jpeg|jpg|png/;
+    const extname = allowedTypes.test(
+      path.extname(file.originalname).toLowerCase()
+    );
+    const mimetype = allowedTypes.test(file.mimetype);
+    if (extname && mimetype) {
+      cb(null, true);
+    } else {
+      cb(new Error("Solo se permiten imágenes JPG, JPEG o PNG"));
+    }
+  },
+});
+
 app.use(cors());
 app.use(express.json());
-
-// Servir archivos estáticos desde la carpeta images
 app.use("/images", express.static(path.join(__dirname, "images")));
+app.use("/uploads", express.static(path.join(__dirname, "uploads")));
 
 // Datos iniciales de superhéroes
 const superheroes = [
@@ -445,11 +475,18 @@ app.get("/api/superhero/:id", async (req, res) => {
   }
 });
 
-app.post("/api/superheroes", async (req, res) => {
+app.post("/api/superheroes", upload.array("images", 10), async (req, res) => {
   try {
     const superheroData = {
-      ...req.body,
-      images: ["/images/superheroes.jpg"], // Forzar imagen fija
+      name: req.body.name,
+      realName: req.body.realName || "",
+      yearAppeared: parseInt(req.body.yearAppeared),
+      house: req.body.house,
+      biography: req.body.biography,
+      equipment: req.body.equipment || "",
+      images: ["/images/superheroes.jpg"].concat(
+        req.files.map((file) => `/uploads/${file.filename}`)
+      ),
     };
     const superhero = new Superhero(superheroData);
     await superhero.save();
@@ -462,20 +499,88 @@ app.post("/api/superheroes", async (req, res) => {
   }
 });
 
-app.put("/api/superhero/:id", async (req, res) => {
+app.put("/api/superhero/:id", upload.array("images", 10), async (req, res) => {
   try {
+    const superhero = await Superhero.findById(req.params.id);
+    if (!superhero)
+      return res.status(404).json({ message: "Superhéroe no encontrado" });
+
+    // Parsear imagesToRemove si existe
+    let imagesToRemove = [];
+    try {
+      imagesToRemove = req.body.imagesToRemove
+        ? JSON.parse(req.body.imagesToRemove)
+        : [];
+    } catch (error) {
+      return res
+        .status(400)
+        .json({ message: "Formato inválido para imagesToRemove" });
+    }
+
+    // Filtrar imágenes existentes, excluyendo las marcadas para eliminación
+    let updatedImages = superhero.images.filter(
+      (img) => !imagesToRemove.includes(img)
+    );
+
+    // Agregar nuevas imágenes subidas
+    if (req.files.length > 0) {
+      const newImages = req.files.map((file) => `/uploads/${file.filename}`);
+      updatedImages = updatedImages.concat(newImages);
+    }
+
+    // Si no hay imágenes, añadir la predeterminada
+    if (updatedImages.length === 0) {
+      updatedImages = ["/images/superheroes.jpg"];
+    }
+
+    // Eliminar imágenes marcadas de /uploads/ (no /images/superheroes.jpg)
+    imagesToRemove.forEach((image) => {
+      if (image !== "/images/superheroes.jpg") {
+        const imagePath = path.join(__dirname, "uploads", path.basename(image));
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+        }
+      }
+    });
+
+    // Si se suben nuevas imágenes, eliminar las antiguas de /uploads/ (no /images/superheroes.jpg)
+    if (req.files.length > 0) {
+      superhero.images.forEach((image) => {
+        if (
+          image !== "/images/superheroes.jpg" &&
+          !imagesToRemove.includes(image)
+        ) {
+          const oldImagePath = path.join(
+            __dirname,
+            "uploads",
+            path.basename(image)
+          );
+          if (fs.existsSync(oldImagePath)) {
+            fs.unlinkSync(oldImagePath);
+          }
+        }
+      });
+    }
+
     const superheroData = {
-      ...req.body,
-      images: ["/images/superheroes.jpg"], // Forzar imagen fija
+      name: req.body.name,
+      realName: req.body.realName || "",
+      yearAppeared: parseInt(req.body.yearAppeared),
+      house: req.body.house,
+      biography: req.body.biography,
+      equipment: req.body.equipment || "",
+      images: updatedImages,
     };
-    const superhero = await Superhero.findByIdAndUpdate(
+
+    const updatedSuperhero = await Superhero.findByIdAndUpdate(
       req.params.id,
       superheroData,
       { new: true, runValidators: true }
     );
-    if (!superhero)
-      return res.status(404).json({ message: "Superhéroe no encontrado" });
-    res.json({ message: "Superhéroe actualizado con éxito", superhero });
+    res.json({
+      message: "Superhéroe actualizado con éxito",
+      superhero: updatedSuperhero,
+    });
   } catch (error) {
     res.status(400).json({
       message: "Error al actualizar superhéroe",
@@ -489,6 +594,17 @@ app.delete("/api/superhero/:id", async (req, res) => {
     const superhero = await Superhero.findByIdAndDelete(req.params.id);
     if (!superhero)
       return res.status(404).json({ message: "Superhéroe no encontrado" });
+
+    // Eliminar imágenes si no son la predeterminada
+    superhero.images.forEach((image) => {
+      if (image !== "/images/superheroes.jpg") {
+        const imagePath = path.join(__dirname, "uploads", path.basename(image));
+        if (fs.existsSync(imagePath)) {
+          fs.unlinkSync(imagePath);
+        }
+      }
+    });
+
     res.json({ message: "Superhéroe eliminado con éxito" });
   } catch (error) {
     res.status(500).json({

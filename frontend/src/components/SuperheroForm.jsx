@@ -16,6 +16,10 @@ function SuperheroForm() {
     biography: "",
     equipment: "",
   });
+  const [images, setImages] = useState([]); // Nuevas imágenes subidas
+  const [imagePreviews, setImagePreviews] = useState([]); // Vistas previas de nuevas imágenes
+  const [existingImages, setExistingImages] = useState([]); // Imágenes actuales del superhéroe
+  const [imagesToRemove, setImagesToRemove] = useState([]); // Imágenes marcadas para eliminar
   const [loading, setLoading] = useState(isEdit);
 
   useEffect(() => {
@@ -33,6 +37,7 @@ function SuperheroForm() {
             biography: response.data.biography,
             equipment: response.data.equipment || "",
           });
+          setExistingImages(response.data.images);
         } catch (error) {
           toast.error("Error al cargar el superhéroe");
           console.error("Error fetching superhero:", error);
@@ -49,14 +54,49 @@ function SuperheroForm() {
     setFormData((prev) => ({ ...prev, [name]: value }));
   };
 
+  const handleImageChange = (e) => {
+    const files = Array.from(e.target.files);
+    if (files.length + existingImages.length - imagesToRemove.length > 10) {
+      toast.error("No puedes tener más de 10 imágenes en total");
+      return;
+    }
+    setImages(files);
+    setImagePreviews(files.map((file) => URL.createObjectURL(file)));
+  };
+
+  const handleRemoveExistingImage = (image) => {
+    setImagesToRemove((prev) => [...prev, image]);
+  };
+
+  const handleRemoveNewImage = (index) => {
+    setImages((prev) => prev.filter((_, i) => i !== index));
+    setImagePreviews((prev) => prev.filter((_, i) => i !== index));
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    const data = new FormData();
+    data.append("name", formData.name);
+    data.append("realName", formData.realName);
+    data.append("yearAppeared", formData.yearAppeared);
+    data.append("house", formData.house);
+    data.append("biography", formData.biography);
+    data.append("equipment", formData.equipment);
+    images.forEach((image) => {
+      data.append("images", image);
+    });
+    data.append("imagesToRemove", JSON.stringify(imagesToRemove));
+
     try {
       if (isEdit) {
-        await axios.put(`http://localhost:5000/api/superhero/${id}`, formData);
+        await axios.put(`http://localhost:5000/api/superhero/${id}`, data, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
         toast.success("Superhéroe actualizado exitosamente");
       } else {
-        await axios.post("http://localhost:5000/api/superheroes", formData);
+        await axios.post(`http://localhost:5000/api/superheroes`, data, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
         toast.success("Superhéroe creado exitosamente");
       }
       navigate("/");
@@ -87,6 +127,7 @@ function SuperheroForm() {
       <form
         onSubmit={handleSubmit}
         className="max-w-lg mx-auto bg-white shadow-md rounded-lg p-6"
+        encType="multipart/form-data"
       >
         <div className="mb-4">
           <label
@@ -194,6 +235,84 @@ function SuperheroForm() {
             onChange={handleChange}
             className="mt-1 w-full p-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
+        </div>
+        <div className="mb-4">
+          <label
+            htmlFor="images"
+            className="block text-sm font-medium text-gray-700"
+          >
+            Imágenes (Opcional, máx. 10)
+          </label>
+          <input
+            type="file"
+            id="images"
+            name="images"
+            accept="image/jpeg,image/png"
+            multiple
+            onChange={handleImageChange}
+            className="mt-1 w-full p-2 border border-gray-300 rounded-md"
+            aria-describedby="images-help"
+          />
+          <p id="images-help" className="mt-1 text-sm text-gray-500">
+            Sube hasta 10 imágenes JPG o PNG (máx. 5MB cada una). Si eliminas
+            todas las imágenes, se usará la imagen predeterminada
+            (/images/superheroes.jpg).
+          </p>
+          {isEdit && existingImages.length > 0 && (
+            <div className="mt-2">
+              <p className="text-sm font-medium text-gray-700">
+                Imágenes actuales:
+              </p>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {existingImages.map(
+                  (image, index) =>
+                    !imagesToRemove.includes(image) && (
+                      <div key={index} className="relative">
+                        <img
+                          src={`http://localhost:5000${image}`}
+                          alt={`Imagen actual ${index + 1}`}
+                          className="w-24 h-24 object-cover rounded-md"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => handleRemoveExistingImage(image)}
+                          className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600"
+                          aria-label={`Eliminar imagen ${index + 1}`}
+                        >
+                          ×
+                        </button>
+                      </div>
+                    )
+                )}
+              </div>
+            </div>
+          )}
+          {imagePreviews.length > 0 && (
+            <div className="mt-2">
+              <p className="text-sm font-medium text-gray-700">
+                Nuevas imágenes:
+              </p>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {imagePreviews.map((preview, index) => (
+                  <div key={index} className="relative">
+                    <img
+                      src={preview}
+                      alt={`Vista previa de la imagen ${index + 1}`}
+                      className="w-24 h-24 object-cover rounded-md"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveNewImage(index)}
+                      className="absolute top-0 right-0 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-600"
+                      aria-label={`Eliminar nueva imagen ${index + 1}`}
+                    >
+                      ×
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
         <div className="flex justify-end space-x-2">
           <button

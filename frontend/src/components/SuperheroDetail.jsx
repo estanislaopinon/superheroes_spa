@@ -8,6 +8,7 @@ function SuperheroDetail() {
   const navigate = useNavigate();
   const [superhero, setSuperhero] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [currentImageIndex, setCurrentImageIndex] = useState(0);
 
   useEffect(() => {
     const fetchSuperhero = async () => {
@@ -41,6 +42,18 @@ function SuperheroDetail() {
         console.error("Error deleting superhero:", error);
       }
     }
+  };
+
+  const handlePrevImage = () => {
+    setCurrentImageIndex((prev) =>
+      prev === 0 ? superhero.images.length - 1 : prev - 1
+    );
+  };
+
+  const handleNextImage = () => {
+    setCurrentImageIndex((prev) =>
+      prev === superhero.images.length - 1 ? 0 : prev + 1
+    );
   };
 
   if (loading) {
@@ -97,11 +110,38 @@ function SuperheroDetail() {
       <div className="max-w-4xl mx-auto bg-white shadow-lg rounded-lg overflow-hidden">
         <div className="md:flex">
           <div className="md:w-1/3">
-            <img
-              src={`http://localhost:5000/images/superheroes.jpg`}
-              alt={`Imagen de ${superhero.name}`}
-              className="w-full h-64 object-cover md:h-full"
-            />
+            {superhero.images.length > 1 ? (
+              <div className="relative">
+                <img
+                  src={`http://localhost:5000${superhero.images[currentImageIndex]}`}
+                  alt={`Imagen ${currentImageIndex + 1} de ${superhero.name}`}
+                  className="w-full h-64 object-cover md:h-full"
+                />
+                <button
+                  onClick={handlePrevImage}
+                  className="absolute left-2 top-1/2 transform -translate-y-1/2 bg-gray-800 bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75"
+                  aria-label="Imagen anterior"
+                >
+                  &larr;
+                </button>
+                <button
+                  onClick={handleNextImage}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 bg-gray-800 bg-opacity-50 text-white p-2 rounded-full hover:bg-opacity-75"
+                  aria-label="Siguiente imagen"
+                >
+                  &rarr;
+                </button>
+                <div className="absolute bottom-2 left-1/2 transform -translate-x-1/2 bg-gray-800 bg-opacity-50 text-white px-2 py-1 rounded text-sm">
+                  {currentImageIndex + 1} / {superhero.images.length}
+                </div>
+              </div>
+            ) : (
+              <img
+                src={`http://localhost:5000${superhero.images[0]}`}
+                alt={`Imagen de ${superhero.name}`}
+                className="w-full h-64 object-cover md:h-full"
+              />
+            )}
           </div>
           <div className="md:w-2/3 p-6">
             <h1 className="text-3xl font-bold mb-2">{superhero.name}</h1>
@@ -121,7 +161,7 @@ function SuperheroDetail() {
                 {superhero.realName || "No disponible"}
               </p>
               <p>
-                <strong>Año de:</strong> {superhero.yearAppeared}
+                <strong>Año de Aparición:</strong> {superhero.yearAppeared}
               </p>
             </section>
             <section className="mb-4">
